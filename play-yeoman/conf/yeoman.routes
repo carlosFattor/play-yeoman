@@ -3,6 +3,5 @@
 # ~~~~
 
 # Home page
-GET      /*file                                                com.tuplejump.playYeoman.Yeoman.at(file)
-GET      /                                                     com.tuplejump.playYeoman.Yeoman.index
-
+GET      /*file                                                com.guildacode.playYeoman.Yeoman.at(file)
+GET      /                                                     com.guildacode.playYeoman.Yeoman.index

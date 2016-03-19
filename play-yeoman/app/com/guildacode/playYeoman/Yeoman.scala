@@ -1,15 +1,31 @@
-package com.tuplejump.playYeoman
+package com.guildacode.playYeoman
 
-import play.api._
-import play.api.mvc._
-import controllers.Assets
-import play.api.Play.current
 import java.io.File
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.JavaConverters._
+import javax.inject.{Inject, Singleton}
 
-object Yeoman extends Controller {
+import com.typesafe.config.ConfigFactory
+import controllers.Assets
+import play.api.mvc._
+
+import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+
+/**
+ * Class added to support injected route generator (Play 2.5 onwards)
+ */
+@Singleton
+class Yeoman @Inject()()extends Controller {
+
+  val config = ConfigFactory.load
+  // paths to the grunt compile directory or else the application directory, in order of importance
+  val runtimeDirs = Option(config.getStringList("yeoman.devDirs"))
+  val basePaths: List[java.io.File] = runtimeDirs match {
+    case Some(dirs) => dirs.asScala.map(play.Environment.simple().getFile _).toList
+    case None => List(play.Environment.simple().getFile("ui/.tmp"), play.Environment.simple().getFile("ui/app"),
+      //added ui to defaults since the newer projects have bower_components in ui directory instead of ui/app/components
+      play.Environment.simple().getFile("ui"))
+  }
 
   def index = Action.async {
     request =>
@@ -20,7 +36,6 @@ object Yeoman extends Controller {
       }
   }
 
-
   def redirectRoot(base: String = "/ui/") = Action {
     request =>
       if (base.endsWith("/")) {
@@ -30,35 +45,14 @@ object Yeoman extends Controller {
       }
   }
 
+  lazy val atHandler: String => Action[AnyContent] = if (play.Environment.simple().isProd) assetHandler(_: String) else assetHandlerProd(_: String)
+
   def assetHandler(file: String): Action[AnyContent] = {
     Assets.at("/public", file)
   }
 
-  lazy val atHandler: String => Action[AnyContent] = if (Play.isProd) assetHandler(_: String) else DevAssets.assetHandler(_: String)
-
   def at(file: String): Action[AnyContent] = atHandler(file)
 
-
-}
-
-/**
- * Class added to support injected route generator (Play 2.4 onwards)
- */
-class Yeoman extends Controller {
-  def index = Yeoman.index
-
-  def redirectRoot(base: String = "/ui/") = Yeoman.redirectRoot(base)
-}
-
-object DevAssets extends Controller {
-  // paths to the grunt compile directory or else the application directory, in order of importance
-  val runtimeDirs = Play.configuration.getStringList("yeoman.devDirs")
-  val basePaths: List[java.io.File] = runtimeDirs match {
-    case Some(dirs) => dirs.asScala.map(Play.application.getFile _).toList
-    case None => List(Play.application.getFile("ui/.tmp"), Play.application.getFile("ui/app"),
-      //added ui to defaults since the newer projects have bower_components in ui directory instead of ui/app/components
-      Play.application.getFile("ui"))
-  }
 
   /**
    * Construct the temporary and real path under the application.
@@ -66,7 +60,7 @@ object DevAssets extends Controller {
    * The play application path is prepended to the full path, to make sure the
    * absolute path is in the correct SBT sub-project.
    */
-  def assetHandler(fileName: String): Action[AnyContent] = Action {
+  def assetHandlerProd(fileName: String): Action[AnyContent] = Action {
     val targetPaths = basePaths.view map {
       new File(_, fileName)
     } // generate a non-strict (lazy) list of the full paths
